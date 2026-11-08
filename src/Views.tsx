@@ -56,19 +56,25 @@ export default function Views({
 }: Props) {
   const [search, setSearch] = useState(""),
     [invite, setInvite] = useState(""),
-    [status, setStatus] = useState("all");
+    [status, setStatus] = useState("all"),
+    [category, setCategory] = useState("");
   useEffect(() => {
     setSearch("");
     setStatus("all");
+    setCategory("");
     setInvite("");
   }, [tab, org]);
   const low = data.stock.filter((s: Row) => s.quantity <= s.reorder),
     pending = data.orders.filter((o: Row) => o.received < o.quantity),
     transit = data.transfers.filter((t: Row) => t.status === "transit"),
-    products = data.products.filter((p: Row) =>
-      (p.name + " " + p.sku + " " + p.category)
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+    products = data.products.filter(
+      (p: Row) =>
+        (p.name + " " + p.sku + " " + p.category)
+          .toLowerCase()
+          .includes(search.toLowerCase()) &&
+        (!category || p.category === category) &&
+        (status === "all" ||
+          (status === "out" ? p.quantity === 0 : p.quantity > 0)),
     );
   const matches = (r: Row) =>
     Object.values(r).some((v) =>
@@ -274,6 +280,33 @@ export default function Views({
               onChange={(e) => setSearch(e.target.value)}
             />
           </label>
+          <select
+            aria-label="Filter category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">All categories</option>
+            {Array.from(
+              new Set<string>(
+                data.products.map((p: Row) => p.category).filter(Boolean),
+              ),
+            )
+              .sort()
+              .map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+          </select>
+          <select
+            aria-label="Filter product stock"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="all">All stock levels</option>
+            <option value="available">In stock</option>
+            <option value="out">Out of stock</option>
+          </select>
           <span className="muted">{products.length} products</span>
         </div>
         {products.length ? (
@@ -427,6 +460,21 @@ export default function Views({
                     .reduce((n: number, s: Row) => n + s.quantity, 0)}
                 </b>{" "}
                 units on hand
+                <small>
+                  {
+                    data.stock.filter(
+                      (s: Row) => s.location_id === l.id && s.quantity > 0,
+                    ).length
+                  }{" "}
+                  stocked products ·{" "}
+                  {
+                    data.stock.filter(
+                      (s: Row) =>
+                        s.location_id === l.id && s.quantity <= s.reorder,
+                    ).length
+                  }{" "}
+                  low-stock items
+                </small>
               </div>
             </article>
           ))
@@ -447,6 +495,7 @@ export default function Views({
               <th>Supplier</th>
               <th>Email</th>
               <th>Phone</th>
+              <th>Pending deliveries</th>
             </tr>
           </thead>
           <tbody>
@@ -466,6 +515,15 @@ export default function Views({
                   ) : (
                     "—"
                   )}
+                </td>
+                <td>
+                  {
+                    data.orders.filter(
+                      (o: Row) =>
+                        o.supplier_id === s.id && o.received < o.quantity,
+                    ).length
+                  }
+                  <small>In latest 200 orders</small>
                 </td>
               </tr>
             ))}
@@ -647,6 +705,20 @@ export default function Views({
   if (tab === "Stock ledger" || tab === "Sales & returns")
     return (
       <>
+        {tab === "Sales & returns" && (
+          <div className="info-strip">
+            <span>
+              <b>
+                Showing {ledger.filter((r) => r.kind === "sale").length} sales
+                and {ledger.filter((r) => r.kind === "return").length} returns
+                on this page.
+              </b>
+              <br />A sale removes stock. A return adds units back to the
+              original location. Open a sale's return action to see its
+              remaining returnable quantity.
+            </span>
+          </div>
+        )}
         <div className="toolbar">
           <span className="muted">Latest first · 50 movements per page</span>
           <div className="button-row">
@@ -697,16 +769,33 @@ export default function Views({
                       {r.delta}
                     </td>
                     <td>{r.actor}</td>
-                    <td>{r.reason}</td>
+                    <td>
+                      {r.reason}
+                      {r.kind === "return" && (
+                        <small>
+                          Against sale: {r.sale_reference || "Original sale"}
+                        </small>
+                      )}
+                    </td>
                     {tab === "Sales & returns" && (
                       <td>
                         {r.kind === "sale" && (
+                          <small>
+                            {r.returned} / {-r.delta} units returned
+                          </small>
+                        )}
+                        {r.kind === "sale" && r.returnable > 0 && (
                           <button
                             className="text-btn"
                             onClick={() => movement("return", r)}
                           >
-                            Return units
+                            Return units ({r.returnable} left)
                           </button>
+                        )}
+                        {r.kind === "sale" && r.returnable === 0 && (
+                          <span className="badge green-badge">
+                            Fully returned
+                          </span>
                         )}
                       </td>
                     )}
@@ -717,8 +806,8 @@ export default function Views({
           </div>
         ) : (
           <Empty
-            title="No movements recorded yet."
-            detail="Receive stock or add an opening quantity to begin your ledger."
+            title="No movements match this view."
+            detail="Clear filters or check the previous page. To record a first sale, receive stock or add an opening quantity first."
           />
         )}
         <div className="pagination">

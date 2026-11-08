@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowRight,
@@ -25,6 +25,7 @@ import Views from "./Views";
 import { api, Modal, Row, Field, ChoiceField, AddressField } from "./shared";
 import { prepareRoomPhoto } from "./photo";
 import "./style.css";
+import { createRequestGuard } from "./request-guard";
 const tabs = [
   ["Overview", LayoutDashboard],
   ["Products", Package],
@@ -84,7 +85,7 @@ function App() {
     [orgs, setOrgs] = useState<Row[]>([]),
     [org, setOrg] = useState(localStorage.getItem("sf-org") || ""),
     [data, setData] = useState<Row | null>(null),
-    [tab, setTab] = useState("Overview"),
+    [tab, setTabState] = useState("Overview"),
     [ledger, setLedger] = useState<Row[]>([]),
     [page, setPage] = useState(1),
     [more, setMore] = useState(false),
@@ -92,6 +93,7 @@ function App() {
       product: "",
       location: "",
       kind: "",
+      q: "",
     }),
     [mobile, setMobile] = useState(false),
     [modal, setModal] = useState<{
@@ -126,8 +128,18 @@ function App() {
   useEffect(() => {
     if (user) organizations().catch((e) => setError(e.message));
   }, [user]);
+  const requestGuard = useRef(createRequestGuard()).current;
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  function setTab(next: string) {
+    requestGuard.invalidate();
+    setTabState(next);
+    setPage(1);
+    setLedgerFilter({ product: "", location: "", kind: "", q: "" });
+    setLedger([]);
+  }
   async function refresh() {
     if (!org) return;
+    const version = requestGuard.begin();
     const q = "?org=" + org;
     const [d, l] = await Promise.all([
       api("dashboard" + q),
@@ -142,6 +154,8 @@ function App() {
             : ""),
       ),
     ]);
+    if (!requestGuard.isCurrent(version)) return;
+    setUpdatedAt(Date.now());
     setData(d);
     setLedger(l.rows);
     setMore(l.hasNext);
@@ -154,7 +168,10 @@ function App() {
     if (!org || !user) return;
     refresh().catch((e) => setError(e.message));
     const timer = setInterval(() => refresh().catch(() => {}), 30000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      requestGuard.invalidate();
+    };
   }, [page, org, user, tab, ledgerFilter]);
   useEffect(() => {
     if (!message) return;
@@ -308,6 +325,16 @@ function App() {
     if (!prerequisites()) return;
     const receipt = kind === "receipt",
       ret = kind === "return";
+    if (ret && (row?.returnable ?? 0) <= 0) {
+      setError("All units from this sale have already been returned.");
+      return;
+    }
+    if (kind === "sale" && !data?.stock.some((s: Row) => s.quantity > 0)) {
+      setError(
+        "There is no stock available to sell. Receive a purchase or add opening stock first.",
+      );
+      return;
+    }
     open(
       receipt
         ? "Receive purchase delivery"
@@ -318,17 +345,23 @@ function App() {
             : "Adjust stock",
       "movements",
       [
-        ...(receipt || ret ? [] : [productField, locationField]),
+        ...(receipt || ret
+          ? []
+          : [{ ...productField, value: row?.id }, locationField]),
         {
           name: "quantity",
           label: receipt
             ? `Units received (${row!.quantity - row!.received} remaining)`
             : ret
-              ? "Units returned"
+              ? `Units returned (${row!.returnable} remaining)`
               : "Quantity",
           type: "number",
           min: 1,
-          max: receipt ? row!.quantity - row!.received : undefined,
+          max: receipt
+            ? row!.quantity - row!.received
+            : ret
+              ? row!.returnable
+              : undefined,
         },
         ...(kind === "adjustment"
           ? [
@@ -350,6 +383,14 @@ function App() {
           : []),
         {
           name: "reason",
+          value:
+            kind === "sale"
+              ? "SALE-" + Date.now().toString(36).toUpperCase()
+              : undefined,
+          help:
+            kind === "sale"
+              ? "Keep this reference or replace it with your invoice/customer reference."
+              : undefined,
           label:
             kind === "sale"
               ? "Sale reference / note"
@@ -369,6 +410,8 @@ function App() {
                 productId: row!.product_id,
                 locationId: row!.location_id,
                 saleId: row!.id,
+                returnable: row!.returnable,
+                saleReference: row!.reason,
               }
             : {}),
       },
@@ -588,6 +631,20 @@ function App() {
               </div>
             </header>
             <div className="main-content">
+              <div className="toolbar">
+                <span className="fine">
+                  {updatedAt
+                    ? "Updated " + new Date(updatedAt).toLocaleTimeString()
+                    : "Loading latest inventory"}{" "}
+                  · Refreshes every 30 seconds
+                </span>
+                <button
+                  className="text-btn"
+                  onClick={() => refresh().catch((e) => setError(e.message))}
+                >
+                  Refresh now ↻
+                </button>
+              </div>
               <div className="page-heading">
                 <div>
                   <span className="eyebrow">{orgName.toUpperCase()}</span>
@@ -617,6 +674,21 @@ function App() {
                 <>
                   {(tab === "Stock ledger" || tab === "Sales & returns") && (
                     <div className="ledger-filters">
+                      <label>
+                        Search reference / product
+                        <input
+                          aria-label="Search ledger"
+                          value={ledgerFilter.q}
+                          placeholder="Search all matching movements…"
+                          onChange={(e) => {
+                            setLedgerFilter({
+                              ...ledgerFilter,
+                              q: e.target.value,
+                            });
+                            setPage(1);
+                          }}
+                        />
+                      </label>
                       {(["product", "location", "kind"] as const).map((key) => (
                         <label key={key}>
                           {key === "kind"
@@ -670,6 +742,7 @@ function App() {
                             product: "",
                             location: "",
                             kind: "",
+                            q: "",
                           });
                           setPage(1);
                         }}
@@ -813,12 +886,19 @@ function App() {
                       : {}),
                   ...(photo !== undefined ? { photo } : {}),
                 };
+                requestGuard.invalidate();
                 const r = await api(modal.path + "?org=" + org, body);
                 if (["organizations", "join"].includes(modal.path))
                   await organizations(r.id);
                 else await refresh();
                 setModal(null);
-                setMessage("Saved successfully.");
+                setMessage(
+                  modal.initial.kind === "sale"
+                    ? "Sale saved. Stock has been deducted."
+                    : modal.initial.kind === "return"
+                      ? "Return saved. Units are back in stock."
+                      : "Saved successfully.",
+                );
               } catch (e) {
                 setError((e as Error).message);
               } finally {
@@ -826,6 +906,16 @@ function App() {
               }
             }}
           >
+            {modal.initial.kind === "return" && (
+              <div className="info-strip">
+                <span>
+                  Original sale: <b>{modal.initial.saleReference}</b>
+                  <br />
+                  {modal.initial.returnable} units can still be returned.
+                  Returned units go back to the original location.
+                </span>
+              </div>
+            )}
             {["movements", "transfers"].includes(modal.path) && (
               <div className="info-strip">
                 <span>
@@ -927,7 +1017,22 @@ function App() {
                           : undefined
                     }
                     min={f.min}
-                    max={f.max}
+                    max={
+                      f.name === "quantity" &&
+                      (modal.initial.kind === "sale" ||
+                        modal.path === "transfers" ||
+                        (modal.initial.kind === "adjustment" &&
+                          selection.direction === "remove")) &&
+                      selection.productId &&
+                      (selection.locationId || selection.sourceId)
+                        ? data?.stock.find(
+                            (s: Row) =>
+                              s.product_id === selection.productId &&
+                              s.location_id ===
+                                (selection.locationId || selection.sourceId),
+                          )?.quantity || 0
+                        : f.max
+                    }
                     maxLength={200}
                     required={f.required !== false}
                     defaultValue={f.value}

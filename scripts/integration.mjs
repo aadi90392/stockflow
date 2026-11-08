@@ -110,6 +110,60 @@ assert.ok(
 );
 assert.equal((await req("ledger" + q + "&location=" + b.id)).rows.length, 0);
 assert.equal((await req("ledger" + q + "&product=not-owned")).rows.length, 0);
+// Complete sale lifecycle, retries and return limits use the real local Worker API.
+await req("movements" + q, {
+  productId: product,
+  locationId: a.id,
+  quantity: 5,
+  kind: "adjustment",
+  direction: "add",
+  reason: "Return test stock",
+  key: randomUUID(),
+});
+const saleBody = {
+  productId: product,
+  locationId: a.id,
+  quantity: 4,
+  kind: "sale",
+  reason: "RETURN-LIFECYCLE",
+  key: randomUUID(),
+};
+await req("movements" + q, saleBody);
+await req("movements" + q, saleBody);
+let sales = await req("ledger" + q + "&sales=1&q=RETURN-LIFECYCLE");
+assert.equal(sales.rows.length, 1);
+let sale = sales.rows[0];
+assert.equal(sale.returnable, 4);
+const returnBody = {
+  productId: product,
+  locationId: a.id,
+  quantity: 2,
+  kind: "return",
+  reason: "Partial return",
+  saleId: sale.id,
+  key: randomUUID(),
+};
+await req("movements" + q, returnBody);
+await req("movements" + q, returnBody);
+sales = await req("ledger" + q + "&sales=1&q=RETURN-LIFECYCLE");
+assert.equal(sales.rows[0].returnable, 2);
+assert.equal(sales.rows[0].returned, 2);
+await req(
+  "movements" + q,
+  { ...returnBody, quantity: 3, key: randomUUID() },
+  owner,
+  409,
+);
+await req("movements" + q, { ...returnBody, key: randomUUID() });
+sales = await req("ledger" + q + "&sales=1&q=RETURN-LIFECYCLE");
+assert.equal(sales.rows[0].returnable, 0);
+assert.equal((await req("dashboard" + q)).products[0].quantity, 5);
+await req(
+  "movements" + q,
+  { ...returnBody, quantity: 1, key: randomUUID() },
+  owner,
+  409,
+);
 const invite = await req("invite" + q);
 await req("join", { code: invite.invite }, staff);
 await req(

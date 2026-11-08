@@ -137,6 +137,9 @@ export function exportCsv(rows: Row[], page: number) {
     "delta",
     "reason",
     "actor",
+    "returned",
+    "returnable",
+    "sale_reference",
   ];
   const safe = (v: unknown) => {
     let x = String(v ?? "");

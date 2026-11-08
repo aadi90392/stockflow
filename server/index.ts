@@ -343,8 +343,16 @@ app.get("/api/ledger", async (c) => {
       values.push(value);
     }
   }
+  const search = c.req.query("q")?.trim();
+  if (search) {
+    ensure(search.length <= 200, "Search is too long");
+    extra.push(
+      "(instr(lower(m.reason),lower(?))>0 OR instr(lower(p.name),lower(?))>0 OR instr(lower(p.sku),lower(?))>0)",
+    );
+    values.push(search, search, search);
+  }
   const rows = await c.env.DB.prepare(
-    "SELECT m.*,p.name product,p.sku,l.name location,u.name actor FROM movements m JOIN products p ON p.id=m.product_id JOIN locations l ON l.id=m.location_id JOIN users u ON u.id=m.actor_id WHERE m.org_id=?" +
+    "SELECT m.*,CASE WHEN m.kind='sale' THEN -m.delta-COALESCE((SELECT SUM(r.delta) FROM movements r WHERE r.sale_id=m.id AND r.kind='return'),0) ELSE 0 END returnable,COALESCE((SELECT SUM(r.delta) FROM movements r WHERE r.sale_id=m.id AND r.kind='return'),0) returned,(SELECT s.reason FROM movements s WHERE s.id=m.sale_id) sale_reference,p.name product,p.sku,l.name location,u.name actor FROM movements m JOIN products p ON p.id=m.product_id JOIN locations l ON l.id=m.location_id JOIN users u ON u.id=m.actor_id WHERE m.org_id=?" +
       filter +
       (extra.length ? " AND " + extra.join(" AND ") : "") +
       " ORDER BY m.created_at DESC,m.id DESC LIMIT 51 OFFSET ?",

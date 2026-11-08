@@ -10,7 +10,9 @@ Inventory management for small teams with multiple stores or warehouses. Track w
 - Locations with Google Maps address links and supplier contact links; single-product purchase orders with partial receiving and delivery progress.
 - Searchable product/location choices, category suggestions with custom values, prerequisite guidance and available-stock hints.
 - Purchase/transfer search and status filters; server-side ledger filters by product, location and movement type.
-- Sales, bounded returns, reasoned stock adjustments and dispatch/receive transfers.
+- Sales with generated references, partial/full return status and remaining returnable quantities; reasoned stock adjustments and dispatch/receive transfers.
+- Product category/availability filters, location stock summaries and supplier pending-delivery counts (within the latest 200 orders).
+- Search ledger references and products across pages. Stale refresh responses cannot overwrite newer results; changing screens resets ledger filters.
 - Immutable stock ledger, pagination, current-page CSV export and low-stock overview.
 - SQLite triggers atomically update balances and ledger entries; negative stock and over-receiving are rejected.
 
