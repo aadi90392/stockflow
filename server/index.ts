@@ -329,12 +329,27 @@ app.get("/api/ledger", async (c) => {
   ensure(Number.isInteger(page) && page <= 100000, "Invalid page");
   const filter =
     c.req.query("sales") === "1" ? " AND m.kind IN ('sale','return')" : "";
+  const extra: string[] = [];
+  const values: (string | number)[] = [c.get("org")];
+  for (const [parameter, column] of [
+    ["product", "m.product_id"],
+    ["location", "m.location_id"],
+    ["kind", "m.kind"],
+  ]) {
+    const value = c.req.query(parameter);
+    if (value) {
+      ensure(value.length <= 100, "Invalid filter");
+      extra.push(column + "=?");
+      values.push(value);
+    }
+  }
   const rows = await c.env.DB.prepare(
     "SELECT m.*,p.name product,p.sku,l.name location,u.name actor FROM movements m JOIN products p ON p.id=m.product_id JOIN locations l ON l.id=m.location_id JOIN users u ON u.id=m.actor_id WHERE m.org_id=?" +
       filter +
+      (extra.length ? " AND " + extra.join(" AND ") : "") +
       " ORDER BY m.created_at DESC,m.id DESC LIMIT 51 OFFSET ?",
   )
-    .bind(c.get("org"), (page - 1) * 50)
+    .bind(...values, (page - 1) * 50)
     .all();
   return c.json({
     rows: rows.results.slice(0, 50),

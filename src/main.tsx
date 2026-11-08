@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Landing, { Logo } from "./Landing";
 import Views from "./Views";
-import { api, Modal, Row, Field } from "./shared";
+import { api, Modal, Row, Field, ChoiceField, AddressField } from "./shared";
 import { prepareRoomPhoto } from "./photo";
 import "./style.css";
 const tabs = [
@@ -88,6 +88,11 @@ function App() {
     [ledger, setLedger] = useState<Row[]>([]),
     [page, setPage] = useState(1),
     [more, setMore] = useState(false),
+    [ledgerFilter, setLedgerFilter] = useState({
+      product: "",
+      location: "",
+      kind: "",
+    }),
     [mobile, setMobile] = useState(false),
     [modal, setModal] = useState<{
       title: string;
@@ -99,6 +104,7 @@ function App() {
     } | null>(null),
     [photo, setPhoto] = useState<string | undefined>(),
     [processing, setProcessing] = useState(false),
+    [selection, setSelection] = useState<Row>({}),
     [signin, setSignin] = useState(() =>
       new URLSearchParams(location.hash.slice(1)).get("signin"),
     );
@@ -130,7 +136,10 @@ function App() {
           q +
           "&page=" +
           page +
-          (tab === "Sales & returns" ? "&sales=1" : ""),
+          (tab === "Sales & returns" ? "&sales=1" : "") +
+          (tab === "Sales & returns" || tab === "Stock ledger"
+            ? "&" + new URLSearchParams(ledgerFilter).toString()
+            : ""),
       ),
     ]);
     setData(d);
@@ -146,7 +155,7 @@ function App() {
     refresh().catch((e) => setError(e.message));
     const timer = setInterval(() => refresh().catch(() => {}), 30000);
     return () => clearInterval(timer);
-  }, [page, org, user, tab]);
+  }, [page, org, user, tab, ledgerFilter]);
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(""), 8000);
@@ -154,7 +163,10 @@ function App() {
   }, [message]);
   const manage = !!data && ["owner", "manager"].includes(data.role);
   const opts = (rows: Row[] | undefined) =>
-    (rows || []).map((x) => ({ value: x.id, label: x.name }));
+    (rows || []).map((x) => ({
+      value: x.id,
+      label: x.name + (x.sku ? " · " + x.sku : ""),
+    }));
   const productField = {
       name: "productId",
       label: "Product",
@@ -174,6 +186,7 @@ function App() {
   ) {
     setError("");
     setPhoto(undefined);
+    setSelection(initial);
     setModal({
       title,
       path,
@@ -198,6 +211,29 @@ function App() {
         {
           name: "category",
           label: "Category",
+          suggestions: Array.from(
+            new Set([
+              "Electronics",
+              "Food & beverages",
+              "Clothing & apparel",
+              "Home & kitchen",
+              "Office supplies",
+              "Health & personal care",
+              "Beauty & cosmetics",
+              "Tools & hardware",
+              "Automotive",
+              "Sports & outdoors",
+              "Books & stationery",
+              "Toys & games",
+              "Packaging",
+              "Raw materials",
+              "Other",
+              ...(data?.products || [])
+                .map((p: Row) => p.category)
+                .filter(Boolean),
+            ]),
+          ) as string[],
+          help: "Choose a suggestion or type your own category.",
           value: p?.category,
           required: false,
         },
@@ -220,7 +256,42 @@ function App() {
       true,
     );
   }
+  function prerequisites(twoLocations = false, supplier = false) {
+    if (!data?.products.length) {
+      setTab("Products");
+      setMessage(
+        "First add a product with its name and SKU. Then you can record stock.",
+      );
+      addProduct();
+      return false;
+    }
+    if ((data?.locations.length || 0) < (twoLocations ? 2 : 1)) {
+      setTab("Locations");
+      setMessage(
+        twoLocations
+          ? "Add a second location before transferring stock."
+          : "Add a location before recording stock.",
+      );
+      open("Add a location", "locations", [
+        { name: "name", label: "Location name" },
+        { name: "address", label: "Address", type: "address", required: false },
+      ]);
+      return false;
+    }
+    if (supplier && !data?.suppliers.length) {
+      setTab("Suppliers");
+      setMessage("Add your supplier before creating a purchase order.");
+      open("Add a supplier", "suppliers", [
+        { name: "name", label: "Supplier name" },
+        { name: "email", label: "Email", type: "email", required: false },
+        { name: "phone", label: "Phone", required: false },
+      ]);
+      return false;
+    }
+    return true;
+  }
   function addOrder() {
+    if (!prerequisites(false, true)) return;
     open("Create a purchase order", "orders", [
       {
         name: "reference",
@@ -234,6 +305,7 @@ function App() {
     ]);
   }
   function movement(kind: string, row?: Row) {
+    if (!prerequisites()) return;
     const receipt = kind === "receipt",
       ret = kind === "return";
     open(
@@ -303,6 +375,7 @@ function App() {
     );
   }
   function transfer() {
+    if (!prerequisites(true)) return;
     open("Dispatch a stock transfer", "transfers", [
       productField,
       { ...locationField, name: "sourceId", label: "From location" },
@@ -338,7 +411,12 @@ function App() {
       : tab === "Locations"
         ? open("Add a location", "locations", [
             { name: "name", label: "Location name" },
-            { name: "address", label: "Address", required: false },
+            {
+              name: "address",
+              label: "Address",
+              type: "address",
+              required: false,
+            },
           ])
         : tab === "Purchases"
           ? addOrder()
@@ -536,26 +614,91 @@ function App() {
               {!data ? (
                 <div className="loading">Loading inventory…</div>
               ) : (
-                <Views
-                  data={data}
-                  tab={tab}
-                  setTab={setTab}
-                  org={org}
-                  user={user}
-                  ledger={ledger}
-                  page={page}
-                  setPage={setPage}
-                  more={more}
-                  manage={manage}
-                  busy={busy}
-                  addProduct={addProduct}
-                  addOrder={addOrder}
-                  movement={movement}
-                  transfer={transfer}
-                  action={action}
-                  notice={setMessage}
-                  error={setError}
-                />
+                <>
+                  {(tab === "Stock ledger" || tab === "Sales & returns") && (
+                    <div className="ledger-filters">
+                      {(["product", "location", "kind"] as const).map((key) => (
+                        <label key={key}>
+                          {key === "kind"
+                            ? "Movement type"
+                            : key === "product"
+                              ? "Product"
+                              : "Location"}
+                          <select
+                            aria-label={"Filter ledger " + key}
+                            value={ledgerFilter[key]}
+                            onChange={(e) => {
+                              setLedgerFilter({
+                                ...ledgerFilter,
+                                [key]: e.target.value,
+                              });
+                              setPage(1);
+                            }}
+                          >
+                            <option value="">All</option>
+                            {key === "kind"
+                              ? (tab === "Sales & returns"
+                                  ? ["sale", "return"]
+                                  : [
+                                      "adjustment",
+                                      "receipt",
+                                      "sale",
+                                      "return",
+                                      "transfer_out",
+                                      "transfer_in",
+                                    ]
+                                ).map((x) => (
+                                  <option key={x} value={x}>
+                                    {x.replaceAll("_", " ")}
+                                  </option>
+                                ))
+                              : (key === "product"
+                                  ? data.products
+                                  : data.locations
+                                ).map((x: Row) => (
+                                  <option key={x.id} value={x.id}>
+                                    {x.name}
+                                  </option>
+                                ))}
+                          </select>
+                        </label>
+                      ))}
+                      <button
+                        className="text-btn"
+                        onClick={() => {
+                          setLedgerFilter({
+                            product: "",
+                            location: "",
+                            kind: "",
+                          });
+                          setPage(1);
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
+                  <Views
+                    data={data}
+                    tab={tab}
+                    setTab={setTab}
+                    org={org}
+                    user={user}
+                    ledger={ledger}
+                    page={page}
+                    setPage={setPage}
+                    more={more}
+                    manage={manage}
+                    busy={busy}
+                    addProduct={addProduct}
+                    addOrder={addOrder}
+                    movement={movement}
+                    transfer={transfer}
+                    action={action}
+                    notice={setMessage}
+                    error={setError}
+                  />
+                </>
               )}
             </div>
             <footer className="app-footer">
@@ -644,6 +787,12 @@ function App() {
         >
           <form
             className="form"
+            onChange={(e) =>
+              setSelection({
+                ...modal.initial,
+                ...Object.fromEntries(new FormData(e.currentTarget)),
+              })
+            }
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
@@ -677,6 +826,34 @@ function App() {
               }
             }}
           >
+            {["movements", "transfers"].includes(modal.path) && (
+              <div className="info-strip">
+                <span>
+                  {selection.productId &&
+                  (selection.locationId || selection.sourceId) ? (
+                    <>
+                      <b>
+                        {
+                          data?.products.find(
+                            (p: Row) => p.id === selection.productId,
+                          )?.name
+                        }
+                      </b>{" "}
+                      ·{" "}
+                      {data?.stock.find(
+                        (s: Row) =>
+                          s.product_id === selection.productId &&
+                          s.location_id ===
+                            (selection.locationId || selection.sourceId),
+                      )?.quantity || 0}{" "}
+                      units available at this location.
+                    </>
+                  ) : (
+                    "Select a product and source location to see available stock."
+                  )}
+                </span>
+              </div>
+            )}
             {modal.photo && (
               <div className="photo-editor">
                 {photo ? (
@@ -730,21 +907,16 @@ function App() {
               </div>
             )}
             {modal.fields.map((f) => (
-              <label key={f.name}>
+              <div className="form-field" key={f.name}>
                 {f.label}
                 {f.options ? (
-                  <select name={f.name} required defaultValue={f.value ?? ""}>
-                    <option value="" disabled>
-                      Choose {f.label.toLowerCase()}
-                    </option>
-                    {f.options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  <ChoiceField field={f} />
+                ) : f.type === "address" ? (
+                  <AddressField />
                 ) : (
                   <input
+                    list={f.suggestions ? "suggestions-" + f.name : undefined}
+                    aria-label={f.label}
                     name={f.name}
                     type={f.type === "money" ? "number" : f.type || "text"}
                     step={
@@ -761,8 +933,15 @@ function App() {
                     defaultValue={f.value}
                   />
                 )}{" "}
+                {f.suggestions && (
+                  <datalist id={"suggestions-" + f.name}>
+                    {f.suggestions.map((x) => (
+                      <option key={x} value={x} />
+                    ))}
+                  </datalist>
+                )}
                 {f.help && <small>{f.help}</small>}
-              </label>
+              </div>
             ))}
             <button className="btn green" disabled={busy || processing}>
               {processing

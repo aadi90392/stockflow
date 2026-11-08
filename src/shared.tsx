@@ -1,4 +1,4 @@
-import { useEffect, useRef, ReactNode } from "react";
+import { useEffect, useRef, useState, ReactNode } from "react";
 import { X, Package, Plus } from "lucide-react";
 export type Row = Record<string, any>;
 export type Field = {
@@ -11,6 +11,7 @@ export type Field = {
   min?: number;
   max?: number;
   help?: string;
+  suggestions?: string[];
 };
 export const money = (x: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -164,4 +165,85 @@ export function exportCsv(rows: Row[], page: number) {
   a.download = "stockflow-ledger-page-" + page + ".csv";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function ChoiceField({ field }: { field: Field }) {
+  const [query, setQuery] = useState("");
+  const [value, setValue] = useState(String(field.value || ""));
+  const options = field.options || [];
+  const matches = options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(query.toLowerCase()) || o.value === value,
+  );
+  return (
+    <div className="choice-field">
+      <input
+        aria-label={"Search " + field.label}
+        placeholder={"Search " + field.label.toLowerCase() + "…"}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <div className="choice-options" role="group" aria-label={field.label}>
+        {matches.map((o) => (
+          <label
+            className={value === o.value ? "choice selected" : "choice"}
+            key={o.value}
+          >
+            <input
+              type="radio"
+              name={field.name}
+              value={o.value}
+              checked={value === o.value}
+              required
+              onChange={() => setValue(o.value)}
+            />
+            <span>{o.label}</span>
+          </label>
+        ))}
+      </div>
+      {!matches.length && (
+        <small>
+          {options.length
+            ? "No matches. Try another name."
+            : "No records yet. Add one before continuing."}
+        </small>
+      )}
+      <small>
+        {value
+          ? "Selected: " + options.find((o) => o.value === value)?.label
+          : "Select one item above."}
+      </small>
+    </div>
+  );
+}
+export function AddressField() {
+  const [address, setAddress] = useState("");
+  return (
+    <div>
+      <input
+        name="address"
+        value={address}
+        maxLength={200}
+        placeholder="Street, area, city and PIN code"
+        onChange={(e) => setAddress(e.target.value)}
+      />
+      <small>
+        Enter the warehouse address. Check the place on Google Maps before
+        saving.
+      </small>
+      {address.trim() && (
+        <a
+          className="text-btn"
+          target="_blank"
+          rel="noopener noreferrer"
+          href={
+            "https://www.google.com/maps/search/?api=1&query=" +
+            encodeURIComponent(address)
+          }
+        >
+          Find this address on Google Maps ↗
+        </a>
+      )}
+    </div>
+  );
 }

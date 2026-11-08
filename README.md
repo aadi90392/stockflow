@@ -7,7 +7,9 @@ Inventory management for small teams with multiple stores or warehouses. Track w
 - Email sign-in links: single use, 15-minute expiry, hashed tokens and HttpOnly session cookies.
 - Separate organizations with owner, manager and staff permissions; private invitation codes and membership removal.
 - Products with unique SKUs, compressed private photos, unit cost and reorder thresholds.
-- Locations and supplier contacts; single-product purchase orders with partial receiving.
+- Locations with Google Maps address links and supplier contact links; single-product purchase orders with partial receiving and delivery progress.
+- Searchable product/location choices, category suggestions with custom values, prerequisite guidance and available-stock hints.
+- Purchase/transfer search and status filters; server-side ledger filters by product, location and movement type.
 - Sales, bounded returns, reasoned stock adjustments and dispatch/receive transfers.
 - Immutable stock ledger, pagination, current-page CSV export and low-stock overview.
 - SQLite triggers atomically update balances and ledger entries; negative stock and over-receiving are rejected.

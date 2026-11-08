@@ -55,9 +55,11 @@ export default function Views({
   error,
 }: Props) {
   const [search, setSearch] = useState(""),
-    [invite, setInvite] = useState("");
+    [invite, setInvite] = useState(""),
+    [status, setStatus] = useState("all");
   useEffect(() => {
     setSearch("");
+    setStatus("all");
     setInvite("");
   }, [tab, org]);
   const low = data.stock.filter((s: Row) => s.quantity <= s.reorder),
@@ -68,6 +70,49 @@ export default function Views({
         .toLowerCase()
         .includes(search.toLowerCase()),
     );
+  const matches = (r: Row) =>
+    Object.values(r).some((v) =>
+      String(v).toLowerCase().includes(search.toLowerCase()),
+    );
+  const orders = data.orders.filter(
+    (o: Row) =>
+      matches(o) &&
+      (status === "all" ||
+        (status === "open"
+          ? o.received < o.quantity
+          : o.received === o.quantity)),
+  );
+  const transfers = data.transfers.filter(
+    (t: Row) => matches(t) && (status === "all" || t.status === status),
+  );
+  const filters = (transfer = false) => (
+    <div className="toolbar">
+      <input
+        aria-label="Search records"
+        placeholder={
+          transfer
+            ? "Search product or location…"
+            : "Search reference, product or supplier…"
+        }
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      <select
+        aria-label="Filter status"
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+      >
+        <option value="all">All statuses</option>
+        <option value={transfer ? "transit" : "open"}>
+          {transfer ? "In transit" : "Awaiting / partial delivery"}
+        </option>
+        <option value="received">Received</option>
+      </select>
+      <span className="fine">
+        {transfer ? transfers.length : orders.length} matches in latest 200
+      </span>
+    </div>
+  );
   if (tab === "Overview")
     return (
       <>
@@ -362,6 +407,19 @@ export default function Views({
                 <MapPin size={15} />
                 {l.address || "No address added"}
               </p>
+              {l.address && (
+                <a
+                  className="text-btn"
+                  href={
+                    "https://www.google.com/maps/search/?api=1&query=" +
+                    encodeURIComponent(l.address)
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View address on Google Maps ↗
+                </a>
+              )}
               <div>
                 <b>
                   {data.stock
@@ -397,8 +455,18 @@ export default function Views({
                 <td>
                   <b>{s.name}</b>
                 </td>
-                <td>{s.email || "—"}</td>
-                <td>{s.phone || "—"}</td>
+                <td>
+                  {s.email ? <a href={"mailto:" + s.email}>{s.email}</a> : "—"}
+                </td>
+                <td>
+                  {s.phone ? (
+                    <a href={"tel:" + s.phone.replace(/[^+0-9]/g, "")}>
+                      {s.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -420,7 +488,8 @@ export default function Views({
             updates the location balance and ledger together.
           </span>
         </div>
-        {data.orders.length ? (
+        {filters()}
+        {orders.length ? (
           <div className="table-wrap">
             <table>
               <thead>
@@ -434,7 +503,7 @@ export default function Views({
                 </tr>
               </thead>
               <tbody>
-                {data.orders.map((o: Row) => (
+                {orders.map((o: Row) => (
                   <tr key={o.id}>
                     <td>
                       <b>{o.reference}</b>
@@ -444,6 +513,8 @@ export default function Views({
                     <td>{o.location}</td>
                     <td>
                       {o.received} / {o.quantity}
+                      <progress value={o.received} max={o.quantity} />
+                      <small>{o.quantity - o.received} units remaining</small>
                     </td>
                     <td>
                       <span
@@ -476,7 +547,11 @@ export default function Views({
           </div>
         ) : (
           <Empty
-            title="Your next delivery starts here."
+            title={
+              data.orders.length
+                ? "No matching purchase orders"
+                : "Your next delivery starts here."
+            }
             detail="Add a product, location and supplier, then create a purchase order."
             button={manage ? "Create purchase order" : undefined}
             action={addOrder}
@@ -495,7 +570,8 @@ export default function Views({
             only added to the destination after receiving is confirmed.
           </span>
         </div>
-        {data.transfers.length ? (
+        {filters(true)}
+        {transfers.length ? (
           <div className="table-wrap">
             <table>
               <thead>
@@ -508,7 +584,7 @@ export default function Views({
                 </tr>
               </thead>
               <tbody>
-                {data.transfers.map((t: Row) => (
+                {transfers.map((t: Row) => (
                   <tr key={t.id}>
                     <td>
                       <b>{t.product}</b>
@@ -555,7 +631,11 @@ export default function Views({
           </div>
         ) : (
           <Empty
-            title="Move stock between your locations."
+            title={
+              data.transfers.length
+                ? "No matching transfers"
+                : "Move stock between your locations."
+            }
             detail="Create at least two locations, then dispatch available units."
             button={manage ? "Transfer stock" : undefined}
             action={transfer}

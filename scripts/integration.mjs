@@ -8,8 +8,12 @@ const dir = ".wrangler/state/v3/d1/miniflare-D1DatabaseObject";
 const candidates = readdirSync(dir).filter(
   (x) => x.endsWith(".sqlite") && x !== "metadata.sqlite",
 );
-const path = process.env.LOCAL_DB_FILE || (candidates.length === 1 ? candidates[0] : null);
-assert.ok(path && candidates.includes(path), 'Set LOCAL_DB_FILE to the active local database filename when multiple local databases exist.');
+const path =
+  process.env.LOCAL_DB_FILE || (candidates.length === 1 ? candidates[0] : null);
+assert.ok(
+  path && candidates.includes(path),
+  "Set LOCAL_DB_FILE to the active local database filename when multiple local databases exist.",
+);
 const db = new DatabaseSync(join(dir, path));
 const suffix = randomUUID();
 function session(role) {
@@ -94,6 +98,18 @@ assert.equal(results.filter((x) => x === 200).length, 10);
 assert.equal(results.filter((x) => x === 409).length, 10);
 dashboard = await req("dashboard" + q);
 assert.equal(dashboard.products[0].quantity, 0);
+const filtered = await req(
+  "ledger" + q + "&product=" + product + "&location=" + a.id + "&kind=sale",
+);
+assert.equal(filtered.rows.length, 10);
+assert.ok(
+  filtered.rows.every(
+    (r) =>
+      r.kind === "sale" && r.product_id === product && r.location_id === a.id,
+  ),
+);
+assert.equal((await req("ledger" + q + "&location=" + b.id)).rows.length, 0);
+assert.equal((await req("ledger" + q + "&product=not-owned")).rows.length, 0);
 const invite = await req("invite" + q);
 await req("join", { code: invite.invite }, staff);
 await req(
