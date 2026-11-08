@@ -1,0 +1,3 @@
+LOCAL_MAIL=true
+# Local-only mailbox: SELECT email,link FROM local_mail
+# Production secrets: BREVO_API_KEY, EMAIL_FROM, APP_ORIGIN
