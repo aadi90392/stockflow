@@ -10,6 +10,7 @@ import {
   Truck,
   Users,
   Plus,
+  ShoppingBag as ShoppingBagIcon,
 } from "lucide-react";
 export function Logo() {
   return (
@@ -24,6 +25,12 @@ export function Logo() {
 export default function Landing({ start }: { start: () => void }) {
   return (
     <div className="landing">
+      <div className="brand-strip">
+        <span>
+          <b>STOCKFLOW</b> / Inventory & warehouse operations
+        </span>
+        <span>Products. People. Every movement connected.</span>
+      </div>
       <nav className="public-nav">
         <Logo />
         <div className="nav-links">
@@ -41,9 +48,9 @@ export default function Landing({ start }: { start: () => void }) {
             <span className="small-dot" /> INVENTORY, WITHOUT THE GUESSWORK
           </span>
           <h1>
-            Know your stock.
+            Your inventory.
             <br />
-            Keep your business <em>moving.</em>
+            Always <em>under control.</em>
           </h1>
           <p>
             Track products across your stores and warehouses. Receive purchases,
@@ -64,28 +71,53 @@ export default function Landing({ start }: { start: () => void }) {
             </span>
           </div>
         </div>
-        <div className="hero-visual">
-          <img
-            src="/warehouse.jpg"
-            alt="Organized warehouse shelves with stored inventory"
-          />
-          <div className="photo-label">
-            <span className="icon-box">
-              <Package size={24} />
-            </span>
-            <div>
-              <b>From shelf to sale.</b>
-              <p>A clear record at every step.</p>
-            </div>
+        <div className="operations-board">
+          <div className="board-heading">
+            <span className="eyebrow">THE STOCKFLOW WORKFLOW</span>
+            <Boxes size={21} />
           </div>
-          <div className="yellow-note">
-            <ArrowLeftRight size={25} />
-            <strong>
-              Every item.
-              <br />
-              Every location.
-            </strong>
-            <span>One connected inventory.</span>
+          <h3>
+            From incoming stock
+            <br />
+            to your next sale.
+          </h3>
+          <div className="flow-route">
+            {[
+              [
+                ShoppingBagIcon,
+                "01",
+                "Purchase & receive",
+                "Log deliveries. Track what is still due.",
+              ],
+              [
+                Warehouse,
+                "02",
+                "Store & transfer",
+                "Know where every unit belongs.",
+              ],
+              [
+                Package,
+                "03",
+                "Sell & return",
+                "Keep stock aligned with every change.",
+              ],
+            ].map(([Icon, n, title, description]: any) => (
+              <div className="route-step" key={n}>
+                <span className="route-icon">
+                  <Icon size={22} />
+                </span>
+                <section>
+                  <small>STEP {n}</small>
+                  <b>{title}</b>
+                  <p>{description}</p>
+                </section>
+                <ArrowUpRight size={15} />
+              </div>
+            ))}
+          </div>
+          <div className="board-footer">
+            <ShieldCheck size={19} />
+            <span>Every movement. One traceable ledger.</span>
           </div>
         </div>
       </section>

@@ -85,4 +85,8 @@ Production email delivery needs the secrets above and a working provider account
 
 ## Image credit
 
-Landing warehouse image: [Unsplash image source](https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d). The reference supplied by the project owner guided the green, cream and yellow visual direction; page content describes inventory management.
+Landing warehouse image: [Unsplash image source](https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d). The reference supplied by the project owner guided the navy, red and white logistics visual direction; page content describes inventory management.
+
+## Visual checks
+
+With Chrome installed, both local development servers running and the local integration fixtures created, run `node scripts/ui-check.mjs`. This captures all nine workspace screens, the stock adjustment dialog and desktop/mobile layouts in ignored `artifacts/ui/`. It checks browser errors and mobile page overflow. It only creates a temporary session in the local database, removed after the checks. If several local database files exist, set `LOCAL_DB_FILE` to the active SQLite filename.

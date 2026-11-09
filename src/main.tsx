@@ -25,6 +25,7 @@ import Views from "./Views";
 import { api, Modal, Row, Field, ChoiceField, AddressField } from "./shared";
 import { prepareRoomPhoto } from "./photo";
 import "./style.css";
+import "./logistics.css";
 import { createRequestGuard } from "./request-guard";
 const tabs = [
   ["Overview", LayoutDashboard],

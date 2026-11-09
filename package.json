@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "4.3.5",
     "@types/node": "latest",
     "@types/react": "latest",
