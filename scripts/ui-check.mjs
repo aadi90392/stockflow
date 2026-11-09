@@ -38,6 +38,17 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
   await page.locator(".hero h1").waitFor();
+  await page.getByRole("button", {name:"Explore Store & transfer"}).click();
+  assert.equal(await page.getByRole("tab", {name:/Store & transfer/}).getAttribute("aria-selected"), "true");
+  await page.getByRole("tabpanel").getByRole("heading", {name:"One product. Every location accounted for."}).waitFor();
+  await page.getByRole("tab", {name:/Sell & return/}).click();
+  await page.getByRole("tabpanel").getByRole("heading", {name:"Keep every sale connected to your inventory."}).waitFor();
+  await page.getByRole("tab", {name:/Purchase & receive/}).click();
+  await page.locator("#questions summary").first().click();
+  assert.equal(await page.locator("#questions details").first().getAttribute("open"), "");
+  await page.locator("#questions summary").first().click();
+  await page.evaluate(()=>window.scrollTo(0,0));
+
   await page.screenshot({
     path: "artifacts/ui/landing-desktop.png",
     fullPage: true,
