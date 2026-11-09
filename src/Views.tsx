@@ -121,14 +121,14 @@ export default function Views({
   );
   if (tab === "Overview")
     return (
-      <>
+      <div className="overview-hub">
         <div className="dashboard-banner">
           <div>
-            <span className="eyebrow">A CLEARER VIEW OF YOUR BUSINESS</span>
+            <span className="eyebrow">YOUR INVENTORY CONTROL CENTRE</span>
             <h2>
-              Everything in its place.
+              Know your stock.
               <br />
-              Every movement accounted for.
+              Keep business moving.
             </h2>
             <p>
               {data.products.length
@@ -179,15 +179,159 @@ export default function Views({
               "Waiting for full delivery",
             ],
           ].map(([Icon, label, value, hint]: any) => (
-            <div className="stat" key={label}>
+            <button
+              className="stat"
+              key={label}
+              onClick={() =>
+                setTab(
+                  label === "Open purchase orders" ? "Purchases" : "Products",
+                )
+              }
+              aria-label={`${label}: ${value}. View ${label === "Open purchase orders" ? "purchases" : "products"}`}
+            >
               <div>
                 {label}
                 <Icon size={18} />
               </div>
               <strong>{value}</strong>
-              <small>{hint}</small>
-            </div>
+              <small>
+                {hint} <ArrowUpRight size={14} />
+              </small>
+            </button>
           ))}
+        </div>
+        <section
+          className="quick-operations"
+          aria-label="Inventory quick actions"
+        >
+          <div>
+            <span className="eyebrow">MAKE YOUR NEXT MOVE</span>
+            <h3>What needs doing?</h3>
+            <p>Go straight from a decision to a stock update.</p>
+          </div>
+          <div className="operation-buttons">
+            <button onClick={() => movement("sale")} disabled={busy}>
+              <ShoppingBag />
+              <b>Record a sale</b>
+              <small>Deduct sold units</small>
+              <ArrowUpRight />
+            </button>
+            {manage && (
+              <>
+                <button onClick={addOrder} disabled={busy}>
+                  <Truck />
+                  <b>Create a purchase</b>
+                  <small>Order incoming stock</small>
+                  <ArrowUpRight />
+                </button>
+                <button onClick={transfer} disabled={busy}>
+                  <ArrowLeftRight />
+                  <b>Move inventory</b>
+                  <small>Transfer between locations</small>
+                  <ArrowUpRight />
+                </button>
+                <button onClick={() => addProduct()} disabled={busy}>
+                  <Package />
+                  <b>Add a product</b>
+                  <small>Track a new SKU</small>
+                  <ArrowUpRight />
+                </button>
+              </>
+            )}
+            {!manage && (
+              <button onClick={() => setTab("Sales & returns")}>
+                <ArrowLeftRight />
+                <b>Process a return</b>
+                <small>Find the original sale</small>
+                <ArrowUpRight />
+              </button>
+            )}
+          </div>
+        </section>
+        <div className="operations-grid">
+          <section className="panel location-overview">
+            <div className="panel-title">
+              <div>
+                <span className="eyebrow">ACROSS YOUR NETWORK</span>
+                <h3>Where your stock lives</h3>
+              </div>
+              <button className="text-btn" onClick={() => setTab("Locations")}>
+                Locations <ArrowUpRight size={16} />
+              </button>
+            </div>
+            {data.locations.length ? (
+              <div className="warehouse-bars">
+                {data.locations.map((l: Row) => {
+                  const units = data.stock
+                    .filter((s: Row) => s.location_id === l.id)
+                    .reduce((n: number, s: Row) => n + s.quantity, 0);
+                  const total = data.stock.reduce(
+                    (n: number, s: Row) => n + s.quantity,
+                    0,
+                  );
+                  return (
+                    <button key={l.id} onClick={() => setTab("Locations")}>
+                      <span className="warehouse-symbol">
+                        <Warehouse size={23} />
+                      </span>
+                      <span className="warehouse-balance">
+                        <span>
+                          <b>{l.name}</b>
+                          <strong>
+                            {units.toLocaleString()} <small>units</small>
+                          </strong>
+                        </span>
+                        <span className="balance-track">
+                          <span
+                            style={{
+                              width: `${total ? (units / total) * 100 : 0}%`,
+                            }}
+                          />
+                        </span>
+                      </span>
+                      <ArrowUpRight size={16} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <Empty
+                title="Give your inventory a home"
+                detail="Add a warehouse or store to track stock by location."
+                action={() => setTab("Locations")}
+                button="Add a location"
+              />
+            )}
+          </section>
+          <section className="delivery-overview">
+            <span className="eyebrow">ON THE MOVE</span>
+            <h3>Keep deliveries moving.</h3>
+            <p>
+              Check outstanding purchases and stock travelling between your
+              locations.
+            </p>
+            <button onClick={() => setTab("Purchases")}>
+              <span>
+                <Truck />
+                <b>Awaiting purchase delivery</b>
+              </span>
+              <strong>
+                {pending.length}
+                <ArrowUpRight size={18} />
+              </strong>
+            </button>
+            <button onClick={() => setTab("Transfers")}>
+              <span>
+                <ArrowLeftRight />
+                <b>Transfers in transit</b>
+              </span>
+              <strong>
+                {transit.length}
+                <ArrowUpRight size={18} />
+              </strong>
+            </button>
+            <small>Counts use the latest 200 purchases and transfers.</small>
+          </section>
         </div>
         <div className="two-panels">
           <section className="panel">
@@ -265,7 +409,7 @@ export default function Views({
             )}
           </section>
         </div>
-      </>
+      </div>
     );
   if (tab === "Products")
     return (

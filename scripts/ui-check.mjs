@@ -98,6 +98,36 @@ try {
     .locator(".sidebar nav")
     .getByRole("button", { name: "Overview", exact: true })
     .click();
+  for (const label of [
+    "Record a sale",
+    "Create a purchase",
+    "Move inventory",
+    "Add a product",
+  ]) {
+    await page
+      .locator(".operation-buttons")
+      .getByRole("button", { name: label })
+      .click();
+    if (label === "Record a sale" && await page.getByRole("alert").isVisible()) {
+      assert.match(await page.getByRole("alert").innerText(), /no stock available to sell/i);
+      await page.getByRole("button", {name:"Dismiss error"}).click();
+    } else {
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("button", { name: "Close dialog" }).click();
+    }
+    await page.locator(".sidebar nav").getByRole("button", {name:"Overview",exact:true}).click();
+  }
+  for (const label of ["Awaiting purchase delivery", "Transfers in transit"]) {
+    await page
+      .locator(".delivery-overview")
+      .getByRole("button", { name: new RegExp(label) })
+      .click();
+    assert.equal(await page.locator(".overview-hub").count(), 0);
+    await page
+      .locator(".sidebar nav")
+      .getByRole("button", { name: "Overview", exact: true })
+      .click();
+  }
   await page.getByRole("button", { name: "Adjust stock", exact: true }).click();
   await page.getByRole("dialog").waitFor();
   await page.screenshot({ path: "artifacts/ui/adjust-stock.png" });
