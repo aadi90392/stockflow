@@ -1633,3 +1633,4 @@ th {
     flex-wrap: wrap;
   }
 }
+@media(max-width:800px){.toast{transform:none;width:auto;max-width:calc(100vw - 32px)}.toast>span{flex:1;min-width:0;overflow-wrap:anywhere}}
